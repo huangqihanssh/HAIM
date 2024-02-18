@@ -1,9 +1,11 @@
+import os
 from glob import glob
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 import csv
 import sys
 import warnings
+import time
 
 warnings.filterwarnings("ignore")
 from sklearn.model_selection import GridSearchCV
@@ -12,6 +14,10 @@ import xgboost as xgb
 import numpy as np
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import auc
+import pandas as pd
+
+# Parallel computing
+from concurrent.futures import ProcessPoolExecutor
 
 
 def run_xgb(x_train, y_train, x_test):
@@ -60,18 +66,27 @@ def update_result(result, modality, model, auc, f1, accu, accu_bl):
     return result
 
 
-def run_models(x_y, modality, model_method,df):
+def run_models(x_y, modality, model_method, df, ind, task_name):
     pkl_list = df['haim_id'].unique().tolist()
 
-    for seed in range(5):
+    for seed in range(1):
         # train test split
         train_id, test_id = train_test_split(pkl_list, test_size=0.3, random_state=seed)
         # get the index for training and testing set
         train_idx = df[df['haim_id'].isin(train_id)]['haim_id'].tolist()
         test_idx = df[df['haim_id'].isin(test_id)]['haim_id'].tolist()
 
+        start_time = time.time()
+        print(f"Start time for model {ind}-{seed}: {start_time}")
+
         model, auc, f1, accu, accu_bl, conf_matrix, auc_train, f1_train, accu_train, accu_bl_train, conf_matrix_train, y_pred_prob, y_pred_prob_train = run_single_model(
             x_y, train_idx, test_idx, model_method)
+
+        end_time = time.time()  # 记录结束时间
+        execution_time = end_time - start_time  # 计算执行时间
+        minutes = execution_time // 60  # 获取整分钟数
+        seconds = execution_time % 60  # 获取剩余的秒数
+        print(f"Execution time for model {ind}-{seed}: {minutes} min, {seconds} sec")  # 打印执行时间
 
         result = pd.DataFrame(
             columns=['Data Modality', 'Seed', 'Model', 'Train AUC', 'Train F1 Score', 'Train Accuracy',
@@ -81,10 +96,26 @@ def run_models(x_y, modality, model_method,df):
             data=[[str(modality), seed, model_method.__name__, auc_train, f1_train, accu_train, accu_bl_train,
                    str(conf_matrix_train), auc, f1, accu, accu_bl, str(conf_matrix)]])
 
-        result.to_csv('mortality-result/{}-{}.csv'.format(ind, seed))
-        pd.DataFrame(y_pred_prob).to_csv('mortality-result/y_pred_prob/{}-{}.csv'.format(ind, seed))
-        pd.DataFrame(y_pred_prob_train).to_csv('mortality-result/y_pred_prob_train/{}-{}.csv'.format(ind, seed))
+        # 构建目标文件夹路径
+        result_folder_path = '{}-result'.format(task_name)
 
+        # 如果目录不存在，则创建它
+        os.makedirs(result_folder_path, exist_ok=True)
+
+        # 构建子文件夹路径，如果需要
+        y_pred_prob_folder = os.path.join(result_folder_path, 'y_pred_prob')
+        y_pred_prob_train_folder = os.path.join(result_folder_path, 'y_pred_prob_train')
+        os.makedirs(y_pred_prob_folder, exist_ok=True)
+        os.makedirs(y_pred_prob_train_folder, exist_ok=True)
+
+        # 保存结果
+        result_file_path = os.path.join(result_folder_path, '{}-{}.csv'.format(ind, seed))
+        y_pred_prob_file_path = os.path.join(y_pred_prob_folder, '{}-{}.csv'.format(ind, seed))
+        y_pred_prob_train_file_path = os.path.join(y_pred_prob_train_folder, '{}-{}.csv'.format(ind, seed))
+
+        result.to_csv(result_file_path)
+        pd.DataFrame(y_pred_prob).to_csv(y_pred_prob_file_path)
+        pd.DataFrame(y_pred_prob_train).to_csv(y_pred_prob_train_file_path)
 
 def run_single_model(x_y, train_idx, test_idx, model_method):
     x_y = x_y[~x_y.isna().any(axis=1)]
@@ -170,3 +201,20 @@ def get_all_dtypes():
             all_types_experiment.append([data_type, model])
 
     return all_types_experiment
+
+
+def run_experiment(index, all_experiments, data_type_dict, df, task_name):
+    data_type, model = all_experiments[index]
+    processed_data = data_fusion(data_type, data_type_dict, df)
+    result = run_models(processed_data, data_type, model, df, index, task_name)
+    return result
+
+
+def parallel_run(all_types_experiment, data_type_dict, df, task_name, max_workers=4):
+    results = []
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(run_experiment, i, all_types_experiment, data_type_dict, df, task_name) for i in
+                   range(len(all_types_experiment))]
+        for future in futures:
+            results.append(future.result())
+    return results

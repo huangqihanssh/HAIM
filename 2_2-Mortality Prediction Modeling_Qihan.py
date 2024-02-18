@@ -9,7 +9,7 @@
 # distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or 
 # implied. See the License for the specific language governing permissions and limitations under the License.
 
-#-> Authors: 
+# -> Authors:
 #      Luis R Soenksen (<soenksen@mit.edu>),
 #      Yu Ma (<midsumer@mit.edu>),
 #      Cynthia Zeng (<czeng12@mit.edu>),
@@ -29,6 +29,9 @@ from sklearn.model_selection import train_test_split
 import csv
 import sys
 import warnings
+
+from prediction_util import run_models, data_fusion, get_data_dict, get_all_dtypes, parallel_run
+
 warnings.filterwarnings("ignore")
 from sklearn.model_selection import GridSearchCV
 from sklearn import metrics
@@ -46,16 +49,17 @@ df_death_big48 = df[((df['img_length_of_stay'] >= 48) & (df['death_status'] == 1
 df_death_small48['y'] = 1
 df_alive_big48['y'] = 0
 df_death_big48['y'] = 0
-df = pd.concat([df_death_small48, df_alive_big48, df_death_big48], axis = 0)
-df = df.drop(['img_id', 'img_charttime', 'img_deltacharttime', 'discharge_location', 'img_length_of_stay', 
-        'death_status'], axis = 1)
+df = pd.concat([df_death_small48, df_alive_big48, df_death_big48], axis=0)
+df = df.drop(['img_id', 'img_charttime', 'img_deltacharttime', 'discharge_location', 'img_length_of_stay',
+              'death_status'], axis=1)
 
 data_type_dict = get_data_dict(df)
 all_types_experiment = get_all_dtypes()
-        
+
 # Index of which we run the experiment on, this is for the sake of parallelize all experiments
-ind = ind
-data_type, model = all_types_experiment[ind]
-run_models(data_fusion(data_type), data_type, model)
+# ind = 0
+# data_type, model = all_types_experiment[ind]
+# run_models(data_fusion(data_type, data_type_dict, df), data_type, model, df, ind,'mortality_test')
 
-
+if __name__ == '__main__':
+    results = parallel_run(all_types_experiment, data_type_dict, df,'mortality')

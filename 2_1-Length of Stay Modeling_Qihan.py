@@ -25,6 +25,7 @@
 import pandas as pd
 from prediction_util import *
 
+
 # Supply the embedding file 
 fname = 'data/cxr_ic_fusion.csv'
 df = pd.read_csv(fname, skiprows=[45051, 45052])
@@ -44,6 +45,8 @@ data_type_dict = get_data_dict(df)
 all_types_experiment = get_all_dtypes()
 
 # Index of which we run the experiment on, this is for the sake of parallelize all experiments
-ind = 0
-data_type, model = all_types_experiment[ind]
-run_models(data_fusion(data_type, data_type_dict, df), data_type, model, df)
+# ind = 0
+# data_type, model = all_types_experiment[ind]
+# run_models(data_fusion(data_type, data_type_dict, df), data_type, model, df, ind)
+if __name__ == '__main__':
+    results = parallel_run(all_types_experiment, data_type_dict, df,'lengthOfStay')
