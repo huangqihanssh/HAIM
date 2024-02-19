@@ -33,36 +33,28 @@ import warnings
 from prediction_util import run_models, data_fusion, get_data_dict, get_all_dtypes, parallel_run
 
 warnings.filterwarnings("ignore")
-from sklearn.model_selection import GridSearchCV
-from sklearn import metrics
-import xgboost as xgb
-import numpy as np
-
-# Supply the embedding file 
-fname = 'data/cxr_ic_fusion.csv'
-df = pd.read_csv(fname, skiprows=[45051, 45052])
-
-df_death_small48 = df[((df['img_length_of_stay'] < 48) & (df['death_status'] == 1))]
-df_alive_big48 = df[((df['img_length_of_stay'] >= 48) & (df['death_status'] == 0))]
-df_death_big48 = df[((df['img_length_of_stay'] >= 48) & (df['death_status'] == 1))]
-
-df_death_small48['y'] = 1
-df_alive_big48['y'] = 0
-df_death_big48['y'] = 0
-df = pd.concat([df_death_small48, df_alive_big48, df_death_big48], axis=0)
-df = df.drop(['img_id', 'img_charttime', 'img_deltacharttime', 'discharge_location', 'img_length_of_stay',
-              'death_status'], axis=1)
-
-data_type_dict = get_data_dict(df)
-all_types_experiment = get_all_dtypes()
-
-print('all_types_experiment', len(all_types_experiment))
-
-# Index of which we run the experiment on, this is for the sake of parallelize all experiments
-# ind = 0
-# data_type, model = all_types_experiment[ind]
-# run_models(data_fusion(data_type, data_type_dict, df), data_type, model, df, ind,'mortality_test')
 
 if __name__ == '__main__':
+
+    # Supply the embedding file
+    fname = 'data/cxr_ic_fusion.csv'
+    df = pd.read_csv(fname, skiprows=[45051, 45052])
+
+    df_death_small48 = df[((df['img_length_of_stay'] < 48) & (df['death_status'] == 1))]
+    df_alive_big48 = df[((df['img_length_of_stay'] >= 48) & (df['death_status'] == 0))]
+    df_death_big48 = df[((df['img_length_of_stay'] >= 48) & (df['death_status'] == 1))]
+
+    df_death_small48['y'] = 1
+    df_alive_big48['y'] = 0
+    df_death_big48['y'] = 0
+    df = pd.concat([df_death_small48, df_alive_big48, df_death_big48], axis=0)
+    df = df.drop(['img_id', 'img_charttime', 'img_deltacharttime', 'discharge_location', 'img_length_of_stay',
+                  'death_status'], axis=1)
+
+    data_type_dict = get_data_dict(df)
+    all_types_experiment = get_all_dtypes()
+
+    print('mortality - all_types_experiment', len(all_types_experiment))
+
     # Number of Cases： 2047
     results = parallel_run(all_types_experiment, data_type_dict, df, 'mortality', start_index=21)
