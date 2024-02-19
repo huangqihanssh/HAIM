@@ -56,10 +56,13 @@ df = df.drop(['img_id', 'img_charttime', 'img_deltacharttime', 'discharge_locati
 data_type_dict = get_data_dict(df)
 all_types_experiment = get_all_dtypes()
 
+print('all_types_experiment', len(all_types_experiment))
+
 # Index of which we run the experiment on, this is for the sake of parallelize all experiments
 # ind = 0
 # data_type, model = all_types_experiment[ind]
 # run_models(data_fusion(data_type, data_type_dict, df), data_type, model, df, ind,'mortality_test')
 
 if __name__ == '__main__':
-    results = parallel_run(all_types_experiment, data_type_dict, df,'mortality')
+    # Number of Cases： 2047
+    results = parallel_run(all_types_experiment, data_type_dict, df, 'mortality', start_index=21)

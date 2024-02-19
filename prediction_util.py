@@ -1,3 +1,4 @@
+import gc
 import os
 from glob import glob
 from tqdm import tqdm
@@ -97,7 +98,7 @@ def run_models(x_y, modality, model_method, df, ind, task_name):
                    str(conf_matrix_train), auc, f1, accu, accu_bl, str(conf_matrix)]])
 
         # 构建目标文件夹路径
-        result_folder_path = '{}-result'.format(task_name)
+        result_folder_path = 'result/{}-result'.format(task_name)
 
         # 如果目录不存在，则创建它
         os.makedirs(result_folder_path, exist_ok=True)
@@ -116,6 +117,7 @@ def run_models(x_y, modality, model_method, df, ind, task_name):
         result.to_csv(result_file_path)
         pd.DataFrame(y_pred_prob).to_csv(y_pred_prob_file_path)
         pd.DataFrame(y_pred_prob_train).to_csv(y_pred_prob_train_file_path)
+
 
 def run_single_model(x_y, train_idx, test_idx, model_method):
     x_y = x_y[~x_y.isna().any(axis=1)]
@@ -207,14 +209,21 @@ def run_experiment(index, all_experiments, data_type_dict, df, task_name):
     data_type, model = all_experiments[index]
     processed_data = data_fusion(data_type, data_type_dict, df)
     result = run_models(processed_data, data_type, model, df, index, task_name)
+
+    # 清理内存
+    del processed_data
+    del data_type
+    del model
+    gc.collect()
+
     return result
 
 
-def parallel_run(all_types_experiment, data_type_dict, df, task_name, max_workers=4):
+def parallel_run(all_types_experiment, data_type_dict, df, task_name, start_index, max_workers=2):
     results = []
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(run_experiment, i, all_types_experiment, data_type_dict, df, task_name) for i in
-                   range(len(all_types_experiment))]
+                   range(start_index, len(all_types_experiment))]
         for future in futures:
             results.append(future.result())
     return results
