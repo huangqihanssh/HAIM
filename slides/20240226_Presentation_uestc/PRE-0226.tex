@@ -210,7 +210,7 @@ The generation of embeddings from input modalities encompasses a diverse range o
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.7\textwidth]{images/table1}
-  \caption{\scriptsize An example of trajectory generation.}
+%  \caption{\scriptsize An example of trajectory generation.}
   \label{fig:ex1}	
 \end{figure}
 \end{frame}
@@ -257,29 +257,133 @@ The following data frames contain embeddings extracted from various patient data
 
 \end{frame}
 
-\begin{frame}{Modeling}
+\begin{frame}[fragile]{Modeling}{Length of Stay Modeling}
+\small
+This work framed the prediction of patient discharge within the next 48 hours as a binary classification problem: discharged alive within 48 hours (1) or otherwise (0). Each sample in this predictive task corresponds to a single patient-admission EHR time point where an X-ray image was obtained (N = 45,050).
+\begin{lstlisting}[language=Python]
+Main function:
+    # load the HAIM embedding file
+    fname = 'data/cxr_ic_fusion.csv'
+    df = pd.read_csv(fname, skiprows=[45051, 45052])    
+    # Tagging and labelling
+    df_alive_small48 = df[((df['img_length_of_stay'] < 48) & (df['death_status'] == 0))]
+    df_alive_big48 = df[((df['img_length_of_stay'] >= 48) & (df['death_status'] == 0))]
+    df_death = df[(df['death_status'] == 1)]
+    df_alive_small48['y'] = 1
+    df_alive_big48['y'] = 0
+    df_death['y'] = 0 
+    df = pd.concat([df_alive_small48, df_alive_big48, df_death], axis=0)
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Modeling}{Length of Stay Modeling}
+\small
+\begin{lstlisting}[language=Python]
+Main function:
+    ......
+    # Remove unnecessary columns
+    df = df.drop(['img_id', 'img_charttime', 'img_deltacharttime', 'discharge_location', 'img_length_of_stay',
+                  'death_status'], axis=1)
+    
+    # Get all types of data sources, 'de_', 'vd_', 'vp_', 'vmd_',...
+    data_type_dict = get_data_dict(df)
+    
+    # Combine and arrange all types of input samples
+    all_types_experiment = get_all_dtypes()
+
+    # Number of Cases：  2047
+    # Run multithreaded execution task
+    results = parallel_run(all_types_experiment, data_type_dict, df, 'lengthOfStay', start_index=22)
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Modeling}{Length of Stay Modeling}
+\small
+This function is designed to run a grid search with cross-validation on a set of hyperparameters for the XGBoost classifier, optimizing for the ROC AUC metric.
+\begin{lstlisting}[language=Python]
+def run_xgb(x_train, y_train, x_test):
+    cv_folds = 5
+    gs_metric = 'roc_auc'
+    param_grid = {'max_depth': [5, 6, 7, 8],
+                  'n_estimators': [200, 300],
+                  'learning_rate': [0.3, 0.1, 0.05],}
+
+    est = xgb.XGBClassifier(verbosity=0, scale_pos_weight=(len(y_train) - sum(y_train)) / sum(y_train), seed=42,
+                            tree_method='hist', gpu_id=0, eval_metric='logloss')
+
+    gs = GridSearchCV(estimator=est, param_grid=param_grid, scoring=gs_metric, cv=cv_folds)
+    gs.fit(x_train, y_train)
+    ......
+    
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Modeling}{Mortality Prediction Modeling}
+\small
+This work predicted if a patient would pass away within the next 48 hours, treating it as a binary classification: expiring within 48 hours (1) or not (0). For patients not marked for expiration, the class label is 0.
+
+\begin{lstlisting}[language=Python]
+Main function:
+    ......
+    fname = 'data/cxr_ic_fusion.csv'
+    df = pd.read_csv(fname, skiprows=[45051, 45052])
+
+    df_death_small48 = df[((df['img_length_of_stay'] < 48) & (df['death_status'] == 1))]
+    df_alive_big48 = df[((df['img_length_of_stay'] >= 48) & (df['death_status'] == 0))]
+    df_death_big48 = df[((df['img_length_of_stay'] >= 48) & (df['death_status'] == 1))]
+
+    df_death_small48['y'] = 1
+    df_alive_big48['y'] = 0
+    df_death_big48['y'] = 0
+    ......
+\end{lstlisting}
+
 
 \end{frame}
 
+\begin{frame}{Modeling}{Pathology Diagnosis Modeling}
+\small
+This work targeted predicting 10 common chest pathologies (e.g., fractures, lung lesions) using the HAIM framework, which showed superior performance over image-only methods. The dataset for this study, derived from MIMIC-CXR-JPG v2.0.0, labeled pathologies as present (1), absent (0), or inconclusive (-1); we excluded inconclusive cases. Excluding unstructured radiology notes to prevent overfitting, we utilized multimodal inputs for binary classification of each pathology. Sample sizes varied by pathology, with totals ranging from 557 (Fracture) to 18,571 (Cardiomegaly).
+\end{frame}
 
 
 \section{Results}
 
-\begin{frame}{Multi-source vs. Single-source}
+\begin{frame}{Multi-source vs. Single-source}{Length of Stay Modeling}
 
-
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\textwidth]{images/average_auc_by_sources.png}
+%  \caption{\scriptsize An example of trajectory generation.}
+  \label{fig:ex1}	
+\end{figure}
 \end{frame}
 
-\begin{frame}{Multimodality vs. Single Modality}
+\begin{frame}{Multimodality vs. Single Modality}{Length of Stay Modeling}
 
 
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\textwidth]{images/average_auc_by_modalities.png}
+%  \caption{\scriptsize An example of trajectory generation.}
+  \label{fig:ex1}	
+\end{figure}
 \end{frame}
 
-\begin{frame}{ Quantification by Shapley Values}
+%\begin{frame}{ Quantification by Shapley Values}{Formula}
+%
+%
+%
+%\end{frame}
 
 
+\begin{frame}{Quantification by Shapley Values}{Length of Stay Modeling}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\textwidth]{images/shap_value_los.png}
+%  \caption{\scriptsize An example of trajectory generation.}
+  \label{fig:ex1}	
+\end{figure}
 \end{frame}
-
 \backmatter
-
 \end{document}
